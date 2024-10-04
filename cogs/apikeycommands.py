@@ -14,11 +14,11 @@ class apiKeyCommands(commands.Cog):
     async def validateKey(accountAchievements_JSON, interaction : discord.Interaction):
         if 'text' in accountAchievements_JSON:
             if(accountAchievements_JSON['text'] == 'Invalid access token'):
-                await interaction.response.send_message("API key is invalid! Please try again.")
+                await interaction.followup.send("API key is invalid! Please try again.")
                 return False
 
             if(accountAchievements_JSON['text'] == 'requires scope progression'):
-                await interaction.response.send_message("API key requires 'progression' checked!")
+                await interaction.followup.send("API key requires 'progression' checked!")
                 return False
         
         return True
@@ -27,7 +27,7 @@ class apiKeyCommands(commands.Cog):
         NO_REGISTERED_KEY_MESSAGE = "There is no API key registered, please use the command /upload-api-key [api-key] to register your API key."
 
         if(await getKey(userID = userID) == None):
-            await interaction.response.send_message(NO_REGISTERED_KEY_MESSAGE)
+            await interaction.followup.send(NO_REGISTERED_KEY_MESSAGE)
             return False
         
         return True
