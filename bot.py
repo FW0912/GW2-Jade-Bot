@@ -1,6 +1,7 @@
 import os
 import discord
 import datetime
+import json
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
 import requests
@@ -33,7 +34,6 @@ def getDailyFracs():
     getDailyFracList = requests.get(url = ACHIEVEMENTS_URL, params = dailyFracListParams)
 
     dailyFracData = getDailyFracList.json()
-
     dailyFracNameList = list()
 
     for frac in dailyFracData:
@@ -112,18 +112,6 @@ def createDailyStrikesEmbed():
 
     return strikes_embed
 
-async def validateKey(accountAchievements_JSON, interaction : discord.Interaction):
-    if 'text' in accountAchievements_JSON:
-        if(accountAchievements_JSON['text'] == 'Invalid access token'):
-            await interaction.response.send_message("API key is invalid! Please try again.")
-            return False
-
-        if(accountAchievements_JSON['text'] == 'requires scope progression'):
-            await interaction.response.send_message("API key requires 'progression' checked!")
-            return False
-    
-    return 
-
 sendDailyTime = datetime.time(hour=RESET_HOUR, minute=RESET_MINUTE, second=RESET_SECOND, tzinfo=datetime.timezone.utc)
 
 @tasks.loop(time=sendDailyTime)
@@ -143,104 +131,22 @@ async def sendDaily():
         await channel.send(embed=fracs_embed)
         await channel.send(embed=strikes_embed)
 
-@bot.tree.command(name = "upload-api-key", description = "Upload your GW2 API Key (requires 'progression')")
-async def upload_key_command(interaction : discord.Interaction, api_key : str):
-    if isinstance(interaction.channel, discord.channel.DMChannel):
-        userID = interaction.user.id
-        ACCOUNT_ACHIEVEMENTS_URL = os.getenv('ACCOUNT_ACHIEVEMENTS_URL')
-        DUPLICATE_KEY_MESSAGE = "API key is already registered! If you would like to update or delete your API key, please use /update-api-key [new-api-key] or /delete-api-key."
-        
-        accountAchievementParams = {
-            'access_token' : api_key
-        }
-
-        accountAchievements = requests.get(url = ACCOUNT_ACHIEVEMENTS_URL, params = accountAchievementParams)
-
-        accountAchievements_JSON = accountAchievements.json()
-
-        if(await validateKey(accountAchievements_JSON = accountAchievements_JSON, interaction = interaction) == False):
-            return
-            
-        await interaction.response.defer()
-
-        if(await getKey(userID = userID) != None):
-            await interaction.followup.send(DUPLICATE_KEY_MESSAGE)
-            return
-
-        await insertKey(userID = userID, api_key = api_key)
-        await interaction.followup.send("API key has been successfully registered.")
-
-    else:
-        await interaction.response.send_message("Upload your API key by direct message.")
-
-@bot.tree.command(name = "update-api-key", description = "Update your registered GW2 API Key (requires 'progression')")
-async def update_key_command(interaction : discord.Interaction, new_api_key : str):
-    if isinstance(interaction.channel, discord.channel.DMChannel):
-        userID = interaction.user.id
-        ACCOUNT_ACHIEVEMENTS_URL = os.getenv('ACCOUNT_ACHIEVEMENTS_URL')
-        NO_REGISTERED_KEY_MESSAGE = "There is no API key registered, please use the command /upload-api-key [api-key] to register your API key."
-
-        accountAchievementParams = {
-            'access_token' : new_api_key
-        }
-
-        accountAchievements = requests.get(url = ACCOUNT_ACHIEVEMENTS_URL, params = accountAchievementParams)
-
-        accountAchievements_JSON = accountAchievements.json()
-
-        if(await validateKey(accountAchievements_JSON = accountAchievements_JSON, interaction = interaction) == False):
-            return
-            
-        await interaction.response.defer()
-
-        if(await getKey(userID = userID) == None):
-            await interaction.followup.send(NO_REGISTERED_KEY_MESSAGE)
-            return
-
-        await updateKey(userID = userID, new_api_key = new_api_key)
-        await interaction.followup.send("API key has been successfully updated.")
-
-    else:
-        await interaction.response.send_message("Update your API key by direct message.")
-
-@bot.tree.command(name = "delete-api-key", description = "Delete your registered GW2 API Key")
-async def delete_key_command(interaction : discord.Interaction):
-    def check(message):
-        return message.author == interaction.user
-    
-    if isinstance(interaction.channel, discord.channel.DMChannel):
-        userID = interaction.user.id
-        
-        if(await getKey(userID = userID) == None):
-            await interaction.response.send_message("You have no registered API key!")
-            return
-        
-        await interaction.response.send_message("Are you sure? (y/n)")
-
-        try:
-            response = await bot.wait_for('message', check = check, timeout = 30.0)
-        except TimeoutError:
-            return
-        
-        if(response.content != 'y' and response.content != 'n'):
-            await interaction.followup.send("Unknown command, please use (y/n).")
-            return
-
-        if(response.content == 'n'):
-            await interaction.followup.send("Deletion cancelled successfully.")
-            return
-        
-        await deleteKey(userID = userID)
-        await interaction.followup.send("Registered API key deleted successfully.")
-
-    else:
-        await interaction.response.send_message("Delete your API key by direct message.")
+extensions = ['cogs.apikeycommands', 'cogs.raidcommands']
 
 @bot.event
 async def on_ready():
+    for ext in extensions:
+        try:
+            await bot.load_extension(ext)
+        except:
+            print("Extension broken")
+
+    test_guild = discord.Object(id=1090462070765523057)
+    
+    bot.tree.copy_global_to(guild=test_guild)
     await bot.tree.sync()
     print("Commands synced")
-    
+
     if not sendDaily.is_running():
         sendDaily.start()
 
